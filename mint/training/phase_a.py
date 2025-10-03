@@ -41,6 +41,8 @@ class EditorTrainer:
         optimizer: Optional[torch.optim.Optimizer] = None,
         lr: float = 1e-4,
         lambda_small_edit: float = 5e-4,
+        epsilon_lipschitz: float = 0.5,
+        enforce_lipschitz: bool = True,
         device: str = "cuda",
     ):
         """
@@ -52,11 +54,15 @@ class EditorTrainer:
             optimizer: Optional optimizer (created if None)
             lr: Learning rate
             lambda_small_edit: Weight for small-edit penalty (η in proposal)
+            epsilon_lipschitz: E-Lipschitz constraint (max edit norm per layer)
+            enforce_lipschitz: Whether to enforce E-Lipschitz constraints
             device: Device to train on
         """
         self.editor = editor.to(device)
         self.sae_loader = sae_loader
         self.lambda_small_edit = lambda_small_edit
+        self.epsilon_lipschitz = epsilon_lipschitz
+        self.enforce_lipschitz = enforce_lipschitz
         self.device = device
 
         # Create optimizer if not provided
@@ -132,8 +138,24 @@ class EditorTrainer:
         edit_norm = self.editor.get_edit_norm(hidden_no_tool, ctx_vec)
         small_edit_loss = self.lambda_small_edit * edit_norm
 
-        # Total loss: L_counterfactual + η·L_small-edit
-        total_loss = recon_loss + small_edit_loss
+        # E-Lipschitz constraint penalty (from Proposal Section 3.2)
+        # Penalize edits that exceed epsilon_lipschitz per layer
+        lipschitz_loss = 0.0
+        if self.enforce_lipschitz:
+            for layer_key in edited.keys():
+                if layer_key not in hidden_no_tool:
+                    continue
+
+                # Compute edit magnitude: ||edited - original||
+                edit_delta = edited[layer_key] - hidden_no_tool[layer_key]
+                edit_magnitude = torch.norm(edit_delta, p=2, dim=-1).mean()
+
+                # Penalize if exceeds epsilon
+                lipschitz_violation = torch.relu(edit_magnitude - self.epsilon_lipschitz)
+                lipschitz_loss += lipschitz_violation
+
+        # Total loss: L_counterfactual + η·L_small-edit + L_lipschitz
+        total_loss = recon_loss + small_edit_loss + lipschitz_loss
 
         # Backward pass
         total_loss.backward()
@@ -148,6 +170,7 @@ class EditorTrainer:
             "total_loss": total_loss.item(),
             "recon_loss": recon_loss.item(),
             "small_edit_loss": small_edit_loss.item(),
+            "lipschitz_loss": lipschitz_loss.item() if isinstance(lipschitz_loss, torch.Tensor) else lipschitz_loss,
         }
 
     def train_epoch(

@@ -1,4 +1,13 @@
-"""MINT decision maker for risk-calibrated tool selection."""
+"""
+MINT decision maker for risk-calibrated tool selection.
+
+Implements Proposal Section 3.4 and Section 6:
+- Risk-calibrated tool selection with conformal LCBs
+- Optional online conformal for distribution shift
+- Optional risk budget tracking for multi-step trajectories
+
+Reference: MINT Proposal Section 3.4, Section 6
+"""
 
 import torch
 from typing import Dict, List, Optional, Tuple, Union
@@ -37,11 +46,17 @@ class MINTDecisionMaker:
             tools: List of tool names
             editors: Dict mapping tool names to MechanisticEditor instances
             value_heads: Dict mapping tool names to ValueHead instances
-            calibrators: Dict mapping tool names to ConformalCalibrator instances
+            calibrators: Dict mapping tool names to ConformalCalibrator or
+                        OnlineConformalPredictor or AdaptiveConformalPredictor instances
             sae_loader: SAELoader instance
             costs: Dict mapping tool names to costs
-            risk_budget: RiskBudget instance
+            risk_budget: RiskBudget or HierarchicalRiskBudget instance
             residual_layers: List of residual layer indices
+
+        Note:
+            - Supports both split and online conformal prediction
+            - Supports risk budget tracking for multi-step trajectories
+            - See mint.inference.online_conformal and mint.inference.risk_budget
         """
         self.tools = tools
         self.editors = editors

@@ -9,9 +9,11 @@ MINT estimates the counterfactual treatment effect of tools on model hidden stat
 **Key Components:**
 - **Sparse Autoencoders (SAEs):** Extract 262K interpretable features from Llama-3.1-8B
 - **Causal Affordance Discovery:** Identify tool-relevant features via contrastive analysis
-- **Mechanistic Tool Editors:** Learn feature-space interventions simulating tool use
-- **Value Heads:** Predict utility gains from counterfactual states
-- **Conformal Calibration:** Provide distribution-free uncertainty bounds
+- **Mechanistic Tool Editors:** Learn feature-space interventions simulating tool use with E-Lipschitz constraints
+- **Value Heads:** Predict utility gains from counterfactual states with Cox/CE success prediction
+- **Conformal Calibration:** Provide distribution-free uncertainty bounds (split + online modes)
+- **Faithfulness Regularization:** Ablation faithfulness and contrastive causal InfoNCE losses
+- **Risk Budget Tracking:** Trajectory-level error control with hierarchical budgets
 - **Risk-Calibrated Decisions:** Select tools via argmax(LCB - cost)
 
 ## Quick Start
@@ -138,6 +140,98 @@ mint/
 │   ├── tools/                   # Tool-specific implementations
 │   └── training/                # Training phases
 └── README.md                    # This file
+```
+
+## Advanced Features
+
+### Faithfulness Regularization (Phase C)
+
+MINT now includes faithfulness regularization to improve interpretability and robustness:
+
+- **Ablation Faithfulness:** Penalizes decision invariance when important features are ablated
+- **Contrastive Causal InfoNCE:** Encourages ΔV̂_u* > ΔV̂_u for optimal tool u*
+
+Enable during training:
+```python
+from mint.training.phase_c import ConformalCalibrationTrainer
+
+trainer = ConformalCalibrationTrainer(
+    value_head=value_head,
+    editor=editor,
+    use_faithfulness=True,
+    lambda_ablation=0.1,
+    lambda_contrastive=0.5,
+)
+
+# Fine-tune with faithfulness regularization
+trainer.train_with_faithfulness(pairs, steps=500)
+```
+
+### Online Conformal Prediction
+
+Adaptive calibration for distribution shift:
+
+```python
+from mint.inference.online_conformal import AdaptiveConformalPredictor
+
+calibrator = AdaptiveConformalPredictor(alpha=0.1)
+
+# Calibrate with initial data (split conformal)
+calibrator.calibrate(predictions, targets)
+
+# Update online as new data arrives
+for pred, target in new_data:
+    calibrator.update(pred, target)
+    lcb = calibrator.get_lcb(pred)
+
+    # Automatically switches to online mode if shift detected
+    if calibrator.get_mode() == "online":
+        print("Distribution shift detected!")
+```
+
+### Risk Budget Tracking
+
+Trajectory-level error control:
+
+```python
+from mint.inference.risk_budget import HierarchicalRiskBudget
+
+# Define tool families and budgets
+risk_budget = HierarchicalRiskBudget(
+    total_budget=0.1,  # 10% error rate
+    horizon=100,  # Expected trajectory length
+    tool_families={
+        "external": ["search", "api"],
+        "local": ["calculator", "parser"],
+    },
+    family_budgets={
+        "external": 0.07,  # 70% of budget
+        "local": 0.03,     # 30% of budget
+    },
+)
+
+# Check before tool call
+if risk_budget.can_afford(risk=0.05, tool="search"):
+    # Make tool call
+    risk_budget.spend(risk=0.05, tool="search")
+```
+
+### Real Data Collection
+
+Replace synthetic data with real τ-bench pairs:
+
+```bash
+# Download τ-bench dataset first
+git clone https://github.com/sierra-research/tau-bench
+# Extract trajectories to data/taubench/trajectories.json
+
+# Collect real counterfactual pairs
+python scripts/collect_taubench_pairs.py \
+    --num_pairs 500 \
+    --output data/counterfactual_pairs/real_pairs.pt
+
+# Use in training
+python scripts/train_editors.py --data_path data/counterfactual_pairs/real_pairs.pt
 ```
 
 ## Evaluation

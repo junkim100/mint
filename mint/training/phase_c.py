@@ -1,8 +1,17 @@
-"""Phase C: Conformal calibration for risk-calibrated predictions."""
+"""
+Phase C: Conformal calibration and faithfulness regularization.
+
+Implements Proposal Section 4, Phase C:
+- Conformal calibration for risk-calibrated predictions
+- Ablation faithfulness regularization
+- Contrastive causal InfoNCE
+
+Reference: MINT Proposal Section 4, Phase C
+"""
 
 import torch
 import numpy as np
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -117,22 +126,46 @@ class ConformalCalibrator:
 
 
 class ConformalCalibrationTrainer:
-    """Trainer for conformal calibration (Phase C)."""
+    """
+    Trainer for conformal calibration (Phase C).
+
+    Now includes faithfulness regularization from Proposal Section 4, Phase C.
+    """
 
     def __init__(
         self,
         value_head,
+        editor: Optional[any] = None,
         device: str = "cuda",
+        use_faithfulness: bool = False,
+        lambda_ablation: float = 0.1,
+        lambda_contrastive: float = 0.5,
     ):
         """
         Initialize conformal calibration trainer.
 
         Args:
             value_head: Trained value head
+            editor: Optional editor for faithfulness regularization
             device: Device to use
+            use_faithfulness: Whether to use faithfulness regularization
+            lambda_ablation: Weight for ablation faithfulness loss
+            lambda_contrastive: Weight for contrastive causal loss
         """
         self.value_head = value_head.to(device)
+        self.editor = editor.to(device) if editor is not None else None
         self.device = device
+        self.use_faithfulness = use_faithfulness
+
+        # Faithfulness regularizer (if enabled)
+        if use_faithfulness and editor is not None:
+            from mint.training.faithfulness import FaithfulnessRegularizer
+            self.faithfulness_regularizer = FaithfulnessRegularizer(
+                lambda_ablation=lambda_ablation,
+                lambda_contrastive=lambda_contrastive,
+            )
+        else:
+            self.faithfulness_regularizer = None
 
     def calibrate(
         self,
@@ -206,4 +239,96 @@ class ConformalCalibrationTrainer:
         )
 
         return calibrator
+
+    def train_with_faithfulness(
+        self,
+        pairs: List[Dict],
+        steps: int = 500,
+        batch_size: int = 16,
+        lr: float = 1e-5,
+    ) -> Dict[str, float]:
+        """
+        Fine-tune editor and value head with faithfulness regularization.
+
+        Implements Proposal Section 4, Phase C:
+        - Ablation faithfulness: Penalize decision invariance
+        - Contrastive causal InfoNCE: Encourage ΔV̂_u* > ΔV̂_u≠u*
+
+        Args:
+            pairs: Training pairs
+            steps: Number of training steps
+            batch_size: Batch size
+            lr: Learning rate (small for fine-tuning)
+
+        Returns:
+            Dictionary of training statistics
+        """
+        if not self.use_faithfulness or self.faithfulness_regularizer is None:
+            logger.warning("Faithfulness regularization not enabled")
+            return {}
+
+        if self.editor is None:
+            logger.warning("No editor provided for faithfulness training")
+            return {}
+
+        logger.info(f"Training with faithfulness regularization for {steps} steps")
+
+        # Create optimizer for fine-tuning
+        params = list(self.editor.parameters()) + list(self.value_head.parameters())
+        optimizer = torch.optim.AdamW(params, lr=lr, weight_decay=1e-5)
+
+        self.editor.train()
+        self.value_head.train()
+
+        total_stats = {
+            'ablation_faith': 0.0,
+            'contrastive': 0.0,
+            'total_loss': 0.0,
+        }
+
+        for step in range(steps):
+            # Sample batch
+            batch_indices = torch.randint(0, len(pairs), (batch_size,))
+            batch = [pairs[i] for i in batch_indices]
+
+            # Get states
+            hidden_states = {}
+            for key in batch[0].hidden_states_no_tool.keys():
+                hidden_states[key] = torch.stack([
+                    p.hidden_states_no_tool[key] for p in batch
+                ]).to(self.device)
+
+            # Compute faithfulness loss
+            faith_loss, faith_stats = self.faithfulness_regularizer.compute_loss(
+                editor=self.editor,
+                value_head=self.value_head,
+                hidden_states=hidden_states,
+                ctx_vec=None,  # Could compute from hidden_states if needed
+            )
+
+            # Backward
+            optimizer.zero_grad(set_to_none=True)
+            faith_loss.backward()
+            torch.nn.utils.clip_grad_norm_(params, max_norm=1.0)
+            optimizer.step()
+
+            # Accumulate stats
+            for key, value in faith_stats.items():
+                total_stats[key] += value
+            total_stats['total_loss'] += faith_loss.item()
+
+            # Log
+            if step % 100 == 0 or step == steps - 1:
+                logger.info(
+                    f"Faithfulness step {step}/{steps}: "
+                    f"loss={faith_loss.item():.4f}, "
+                    + ", ".join(f"{k}={v:.4f}" for k, v in faith_stats.items())
+                )
+
+        # Average stats
+        avg_stats = {k: v / steps for k, v in total_stats.items()}
+
+        logger.info(f"Faithfulness training complete. Avg stats: {avg_stats}")
+
+        return avg_stats
 

@@ -55,6 +55,8 @@ class ValueHeadTrainer:
         batch_size: int = 32,
         lr: float = 1e-4,
         weight_decay: float = 1e-5,
+        lambda_success: float = 0.1,
+        use_success_loss: bool = True,
     ):
         """
         Train value head on observed return gains from real counterfactual pairs.
@@ -62,7 +64,7 @@ class ValueHeadTrainer:
         Implements Proposal Section 4, Phase B:
         - Uses real ΔV from τ-bench task outcomes (not synthetic)
         - Computes ΔV̂_u = g(H̃_t^(u)) - g(H_t) via predict_delta_v()
-        - Minimizes (ΔV̂_u - ΔV)²
+        - Minimizes (ΔV̂_u - ΔV)² + λ·Cox/CE for success
 
         Args:
             pairs: List of CounterfactualPair objects from τ-bench
@@ -70,6 +72,8 @@ class ValueHeadTrainer:
             batch_size: Batch size
             lr: Learning rate
             weight_decay: Weight decay
+            lambda_success: Weight for success prediction loss
+            use_success_loss: Whether to use Cox/CE success prediction
         """
         optimizer = optim.AdamW(
             self.value_head.parameters(),
@@ -110,7 +114,30 @@ class ValueHeadTrainer:
             pred_delta_v = self.value_head.predict_delta_v(baseline_states, edited_states)
 
             # Loss: (ΔV̂_u - ΔV)²
-            loss = nn.functional.mse_loss(pred_delta_v, target_delta_v)
+            mse_loss = nn.functional.mse_loss(pred_delta_v, target_delta_v)
+
+            # Optional: Cox/CE for success prediction (Proposal Section 4, Phase B)
+            success_loss = 0.0
+            if use_success_loss:
+                # Get success labels
+                success_labels = torch.tensor(
+                    [p.success for p in batch],
+                    device=self.device,
+                    dtype=torch.float32,
+                )
+
+                # Predict success from ΔV (higher ΔV → higher success probability)
+                # Use sigmoid to convert ΔV to probability
+                success_probs = torch.sigmoid(pred_delta_v)
+
+                # Binary cross-entropy loss
+                success_loss = nn.functional.binary_cross_entropy(
+                    success_probs, success_labels
+                )
+                success_loss = lambda_success * success_loss
+
+            # Total loss
+            loss = mse_loss + success_loss
 
             # Backward
             optimizer.zero_grad(set_to_none=True)
@@ -119,12 +146,16 @@ class ValueHeadTrainer:
 
             # Log
             if step % 100 == 0 or step == steps - 1:
-                logger.info(
+                log_msg = (
                     f"Step {step}/{steps}: "
                     f"loss={loss.item():.4f}, "
+                    f"mse={mse_loss.item():.4f}, "
                     f"mean_pred={pred_delta_v.mean().item():.4f}, "
                     f"mean_target={target_delta_v.mean().item():.4f}"
                 )
+                if use_success_loss:
+                    log_msg += f", success_loss={success_loss.item():.4f}"
+                logger.info(log_msg)
 
     def evaluate(
         self,
