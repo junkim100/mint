@@ -1,0 +1,111 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Data (don't copy into image, mount at runtime)
+data/
+datasets/
+*.csv
+*.json
+*.jsonl
+*.parquet
+*.arrow
+
+# Models and checkpoints (don't copy into image, mount at runtime)
+checkpoints/
+models/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Logs
+logs/
+*.log
+wandb/
+tensorboard/
+
+# Results (don't copy into image, mount at runtime)
+results/
+outputs/
+experiments/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Environment variables (contains secrets)
+.env
+.env.*
+
+# Documentation (will be selectively removed in Dockerfile)
+# Keep only README.md
+GETTING_STARTED.md
+IMPLEMENTATION_STATUS.md
+PROJECT_SUMMARY.md
+QUICK_REFERENCE.md
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Other
+*.bak
+*.orig
+

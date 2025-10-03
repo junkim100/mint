@@ -1,0 +1,137 @@
+# Dataset configuration for MINT
+
+datasets:
+  # Activation extraction (MFB statistics)
+  slimpajama:
+    name: "cerebras/SlimPajama-627B"
+    split: "train"
+    num_samples: 10000
+    max_length: 1024
+    streaming: true
+  
+  # Counterfactual supervision (Phase A)
+  tau_bench:
+    name: "sierra-research/tau-bench"
+    split: "train"
+    domains: ["airline", "retail", "telecom"]
+    max_turns: 10
+  
+  bfcl:
+    name: "gorilla-llm/Berkeley-Function-Calling-Leaderboard"
+    version: "v4"
+    split: "train"
+    categories: ["simple", "multiple", "parallel", "irrelevance"]
+  
+  # Utility modeling (Phase B)
+  nestful:
+    name: "ComplexFuncBench"  # Placeholder - update with actual dataset
+    split: "train"
+  
+  gaia:
+    name: "gaia-benchmark/GAIA"
+    split: "validation"
+    levels: [1, 2, 3]
+  
+  # Evaluation benchmarks
+  tau_bench_eval:
+    name: "sierra-research/tau-bench"
+    split: "test"
+    domains: ["airline", "retail", "telecom"]
+  
+  bfcl_eval:
+    name: "gorilla-llm/Berkeley-Function-Calling-Leaderboard"
+    version: "v4"
+    split: "test"
+  
+  webarena:
+    name: "webarena"  # Placeholder - requires custom setup
+    split: "test"
+  
+  osworld:
+    name: "osworld"  # Placeholder - requires custom setup
+    split: "test"
+
+# Tool affordance discovery data
+affordance_discovery:
+  # Web search / browser
+  web_search:
+    positive_indicators:
+      - "open-world facts"
+      - "date-sensitive"
+      - "according to"
+      - "current events"
+    datasets: ["webarena", "gaia"]
+    min_samples: 1000
+  
+  # Calculator / code execution
+  calculator:
+    positive_indicators:
+      - "arithmetic"
+      - "numbers"
+      - "calculate"
+      - "compute"
+    datasets: ["tau_bench", "gsm8k"]
+    min_samples: 1000
+  
+  # Knowledge retrieval / RAG
+  rag_retrieval:
+    positive_indicators:
+      - "multi-hop"
+      - "factual query"
+      - "entity overlap"
+    datasets: ["gaia", "tau_bench"]
+    min_samples: 1000
+  
+  # Domain APIs
+  domain_api:
+    positive_indicators:
+      - "schema tokens"
+      - "external state"
+      - "API call"
+    datasets: ["tau_bench", "bfcl"]
+    min_samples: 1000
+  
+  # File system operations
+  file_system:
+    positive_indicators:
+      - "file path"
+      - "open"
+      - "save"
+      - "move"
+      - "rename"
+    datasets: ["osworld"]
+    min_samples: 500
+
+# Data preprocessing
+preprocessing:
+  tokenizer_max_length: 2048
+  truncation: true
+  padding: "max_length"
+  return_tensors: "pt"
+  
+  # Counterfactual pair construction
+  counterfactual:
+    max_context_length: 1024
+    tool_output_max_length: 256
+    include_reasoning: true
+  
+  # Utility labeling
+  utility:
+    success_threshold: 0.8
+    log_odds_proxy: true
+    normalize: true
+
+# Calibration split
+calibration:
+  split_ratio: 0.2
+  stratify_by: "domain"
+  min_samples_per_tool: 100
+
+# Data loading
+dataloader:
+  batch_size: 32
+  num_workers: 4
+  pin_memory: true
+  shuffle: true
+  drop_last: false
+

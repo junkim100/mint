@@ -1,0 +1,89 @@
+# Model configuration for MINT
+
+model:
+  name: "meta-llama/Llama-3.1-8B-Instruct"
+  dtype: "bfloat16"
+  device_map: "auto"
+  use_cache: true
+  output_hidden_states: true
+
+sae:
+  # Residual stream SAEs (8x = 32K features)
+  residual:
+    release: "llama_scope_lxr_8x"
+    layers: [5, 12, 18, 24, 28, 31]
+    hook_template: "blocks.{L}.hook_resid_post"
+    width: 32768
+    expansion_factor: 8
+  
+  # MLP SAEs (8x = 32K features)
+  mlp:
+    release: "llama_scope_lxm_8x"
+    layers: [15, 22]
+    hook_template: "blocks.{L}.hook_mlp_out"
+    width: 32768
+    expansion_factor: 8
+
+# Feature bank configuration
+mfb:
+  topk_per_layer: 512  # Top-K features per layer per tool
+  l1_penalty: 1.0e-5   # L1 for sparse logistic regression
+  sparse_lr_steps: 3000
+  sparse_lr_lr: 0.01
+
+# Editor configuration
+editor:
+  alpha_max: 0.5       # Maximum gate value
+  gate_hidden_dim: 512
+  edit_norm_penalty: 5.0e-4
+  lipschitz_bound: 0.1
+
+# Value head configuration
+value_head:
+  hidden_dims: [2048, 256]
+  dropout: 0.1
+  learning_rate: 2.0e-4
+  batch_size: 64
+  epochs: 3
+
+# Conformal calibration
+conformal:
+  alpha: 0.1           # 90% confidence (1-alpha)
+  method: "split"      # split, online, or adaptive
+  calibration_split: 0.2
+
+# Tool costs (relative)
+tool_costs:
+  web_search: 0.10
+  calculator: 0.02
+  rag_retrieval: 0.05
+  domain_api: 0.08
+  file_system: 0.03
+  no_tool: 0.0
+
+# Risk budget
+risk_budget:
+  total_alpha: 0.1
+  per_tool_alpha: 0.02
+  trajectory_length: 10
+  budget_allocation: "uniform"  # uniform, adaptive, or per-tool
+
+# Training
+training:
+  seed: 42
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  warmup_steps: 100
+  weight_decay: 0.01
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1.0e-8
+
+# Logging
+logging:
+  log_interval: 10
+  eval_interval: 100
+  save_interval: 500
+  wandb_project: "mint"
+  wandb_entity: null
+

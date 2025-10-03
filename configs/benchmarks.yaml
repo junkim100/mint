@@ -1,0 +1,118 @@
+# MINT Benchmark Configuration
+# This file defines benchmarks for evaluating models using evalchemy
+
+benchmarks:
+  # Primary benchmark: Multi-turn tool-agent-user interactions
+  TauBench:
+    description: "Multi-turn tool-agent-user interactions in retail/airline domains"
+    requires_api_key: true  # Requires OPENAI_API_KEY for user simulator
+    default_args:
+      env: "retail"  # retail or airline
+      agent_strategy: "tool-calling"  # tool-calling, react, act, few-shot
+      user_model: "gpt-4o"
+      user_model_provider: "openai"
+      start_index: 0
+      end_index: 20  # Number of tasks (full test set: retail=115, airline=50)
+      max_concurrency: 5
+    cost_estimate: "$0.60 for 20 tasks"
+    runtime_estimate: "~10 minutes for 20 tasks"
+    
+  # Math reasoning benchmark
+  AIME24:
+    description: "Advanced math problems from AIME 2024"
+    requires_api_key: false
+    default_args:
+      max_tokens: 4096
+      temperature: 0.0
+    cost_estimate: "Free (if using local model)"
+    runtime_estimate: "~5 minutes"
+    
+  # Instruction following benchmark
+  IFEval:
+    description: "Instruction following evaluation"
+    requires_api_key: false
+    default_args:
+      max_tokens: 4096
+    cost_estimate: "Free (if using local model)"
+    runtime_estimate: "~10 minutes"
+    
+  # Code generation benchmark
+  HumanEval:
+    description: "Python code generation from docstrings"
+    requires_api_key: false
+    default_args:
+      max_tokens: 2048
+      temperature: 0.0
+    cost_estimate: "Free (if using local model)"
+    runtime_estimate: "~5 minutes"
+    
+  # Math problem solving
+  MATH500:
+    description: "Math problem solving benchmark"
+    requires_api_key: false
+    default_args:
+      max_tokens: 4096
+      temperature: 0.0
+    cost_estimate: "Free (if using local model)"
+    runtime_estimate: "~15 minutes"
+
+# Model configurations
+models:
+  # OpenAI models
+  gpt-4o:
+    provider: "openai"
+    requires_api_key: true
+    
+  gpt-4o-mini:
+    provider: "openai"
+    requires_api_key: true
+    
+  # Anthropic models
+  claude-3-5-sonnet-20240620:
+    provider: "anthropic"
+    requires_api_key: true
+    
+  # Local models (via HuggingFace/vLLM)
+  meta-llama/Llama-3.1-8B-Instruct:
+    provider: "hf"
+    requires_api_key: false
+
+# Evaluation presets
+presets:
+  quick_test:
+    description: "Quick test on TauBench (10 tasks)"
+    benchmarks: ["TauBench"]
+    model: "gpt-4o-mini"
+    override_args:
+      TauBench:
+        end_index: 10
+    
+  standard:
+    description: "Standard evaluation on TauBench and AIME24"
+    benchmarks: ["TauBench", "AIME24"]
+    model: "gpt-4o"
+    
+  comprehensive:
+    description: "Comprehensive evaluation on all benchmarks"
+    benchmarks: ["TauBench", "AIME24", "IFEval", "HumanEval", "MATH500"]
+    model: "gpt-4o"
+    override_args:
+      TauBench:
+        end_index: 50  # More tasks for comprehensive eval
+
+# Additional evalchemy benchmarks available
+# (uncomment to enable)
+available_benchmarks:
+  - AIME25  # AIME 2025
+  - AMC23  # AMC 2023
+  - CodeForces  # Competitive programming
+  - WMT24  # Machine translation
+  - MMLUPro  # Multitask language understanding
+  - GPQADiamond  # Graduate-level science questions
+  - LiveCodeBench  # Live code generation benchmark
+  - ArenaHard  # Challenging prompts
+  - BigCodeBench  # Code generation benchmark
+  - CreativeWriting  # Creative writing evaluation
+  - LogicKor  # Korean logic reasoning
+  - SWEbench  # Software engineering benchmark
+
