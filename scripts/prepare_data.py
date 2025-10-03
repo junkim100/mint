@@ -20,7 +20,7 @@ def generate_synthetic_pairs(num_pairs: int = 200) -> List[CounterfactualPair]:
     logger.info(f"Generating {num_pairs} synthetic counterfactual pairs...")
     pairs = []
     tools = ["calculator", "search", "other"]
-    
+
     for i in range(num_pairs):
         if i < num_pairs * 0.515:
             tool = "calculator"
@@ -28,7 +28,7 @@ def generate_synthetic_pairs(num_pairs: int = 200) -> List[CounterfactualPair]:
             tool = "search"
         else:
             tool = "other"
-        
+
         # Generate in bfloat16 to match model dtype
         # Hidden states should be [batch, d_model] not [batch, seq_len, d_model]
         # They represent the last position activations
@@ -63,7 +63,7 @@ def generate_synthetic_pairs(num_pairs: int = 200) -> List[CounterfactualPair]:
             delta_v=0.5 + torch.rand(1).item() * 0.5,
         )
         pairs.append(pair)
-    
+
     logger.info(f"✓ Generated {len(pairs)} pairs")
     return pairs
 
@@ -72,59 +72,59 @@ def discover_affordances(pairs: List[CounterfactualPair], affordances_dir: Path)
     logger.info("Discovering affordances...")
     tools = list(set(p.tool_name for p in pairs))
     layers = ["R5", "R12", "R18", "R24", "R28", "R31", "M15", "M22"]
-    
+
     for tool in tools:
         # Create masks and directions for each layer
         masks = {}
         directions = {}
-        
+
         for layer in layers:
             # Binary mask: which features to edit (top 5%)
             mask = torch.rand(32768) > 0.95
-            
+
             # Direction: how to edit them (normalized, bfloat16)
             direction = torch.randn(32768, dtype=torch.bfloat16)
             direction = direction / direction.norm()
-            
+
             masks[layer] = mask
             directions[layer] = direction
-        
+
         # Save in the format expected by train_editors.py
         affordances = {
             "masks": masks,
             "directions": directions,
         }
-        
+
         # Save as {tool_name}.pt (not {tool_name}_affordances.pt)
         output_file = affordances_dir / f"{tool}.pt"
         torch.save(affordances, output_file)
         logger.info(f"  ✓ {tool}")
-    
+
     logger.info("✓ Affordance discovery complete")
 
 
 def main(num_pairs: int = 200, quick_test: bool = False):
     if quick_test:
         num_pairs = 50
-    
+
     logger.info("="*80)
     logger.info("MINT Data Preparation")
     logger.info("="*80)
-    
-    pairs_dir = Path("/app/mint/data/counterfactual_pairs")
-    affordances_dir = Path("/app/mint/checkpoints/affordances")
+
+    pairs_dir = Path("data/counterfactual_pairs")
+    affordances_dir = Path("checkpoints/affordances")
     pairs_dir.mkdir(parents=True, exist_ok=True)
     affordances_dir.mkdir(parents=True, exist_ok=True)
-    
+
     logger.info("\nStep 1: Generating counterfactual pairs")
     pairs = generate_synthetic_pairs(num_pairs)
     pairs_file = pairs_dir / "pairs.pt"
     torch.save(pairs, pairs_file)
     logger.info(f"✓ Saved to {pairs_file}\n")
-    
+
     logger.info("Step 2: Discovering affordances")
     discover_affordances(pairs, affordances_dir)
-    
+
     logger.info("\n" + "="*80)
     logger.info("Data Preparation Complete")
     logger.info("="*80)

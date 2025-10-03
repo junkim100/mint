@@ -114,7 +114,10 @@ class ValueHeadTrainer:
             pred_delta_v = self.value_head.predict_delta_v(baseline_states, edited_states)
 
             # Loss: (ΔV̂_u - ΔV)²
-            mse_loss = nn.functional.mse_loss(pred_delta_v, target_delta_v)
+            # Ensure shapes match
+            pred_delta_v_flat = pred_delta_v.squeeze(-1) if pred_delta_v.dim() > 1 else pred_delta_v
+            target_delta_v_flat = target_delta_v.squeeze(-1) if target_delta_v.dim() > 1 else target_delta_v
+            mse_loss = nn.functional.mse_loss(pred_delta_v_flat, target_delta_v_flat)
 
             # Optional: Cox/CE for success prediction (Proposal Section 4, Phase B)
             success_loss = 0.0
@@ -128,11 +131,11 @@ class ValueHeadTrainer:
 
                 # Predict success from ΔV (higher ΔV → higher success probability)
                 # Use sigmoid to convert ΔV to probability
-                success_probs = torch.sigmoid(pred_delta_v)
+                success_probs = torch.sigmoid(pred_delta_v).squeeze(-1) if pred_delta_v.dim() > 1 else torch.sigmoid(pred_delta_v)
 
-                # Binary cross-entropy loss
+                # Binary cross-entropy loss (ensure same dtype)
                 success_loss = nn.functional.binary_cross_entropy(
-                    success_probs, success_labels
+                    success_probs, success_labels.to(success_probs.dtype)
                 )
                 success_loss = lambda_success * success_loss
 

@@ -19,10 +19,10 @@ echo "==========================================================================
 echo ""
 
 # Configuration
-DATA_DIR="/app/mint/data/counterfactual_pairs"
-CHECKPOINT_DIR="/app/mint/checkpoints"
-OUTPUT_DIR="/app/mint/output"
-RESULTS_DIR="/app/mint/results"
+DATA_DIR="data/counterfactual_pairs"
+CHECKPOINT_DIR="checkpoints"
+OUTPUT_DIR="output"
+RESULTS_DIR="results"
 
 # Check prerequisites
 echo "Checking prerequisites..."
@@ -51,7 +51,7 @@ echo "==========================================================================
 echo "Phase A: Training Mechanistic Tool Editors"
 echo "================================================================================"
 
-python3 /app/mint/scripts/train_editors.py \
+python3 scripts/train_editors.py \
     --pairs_path "$DATA_DIR/pairs.pt" \
     --affordance_dir "$CHECKPOINT_DIR/affordances" \
     --output_dir "$CHECKPOINT_DIR/editors"
@@ -66,7 +66,7 @@ echo "==========================================================================
 echo "Phase B: Training Value Heads"
 echo "================================================================================"
 
-python3 /app/mint/scripts/train_value_heads.py \
+python3 scripts/train_value_heads.py \
     --pairs_path "$DATA_DIR/pairs.pt" \
     --output_dir "$CHECKPOINT_DIR/value_heads"
 
@@ -80,7 +80,7 @@ echo "==========================================================================
 echo "Phase C: Conformal Calibration"
 echo "================================================================================"
 
-python3 /app/mint/scripts/calibrate.py \
+python3 scripts/calibrate.py \
     --pairs_path "$DATA_DIR/pairs.pt" \
     --value_head_dir "$CHECKPOINT_DIR/value_heads" \
     --output_dir "$CHECKPOINT_DIR/calibrators"
@@ -95,7 +95,7 @@ echo "==========================================================================
 echo "Phase D: MINT Inference"
 echo "================================================================================"
 
-python3 /app/mint/scripts/mint_inference.py \
+python3 scripts/mint_inference.py \
     --affordance_dir "$CHECKPOINT_DIR/affordances" \
     --editor_dir "$CHECKPOINT_DIR/editors" \
     --value_head_dir "$CHECKPOINT_DIR/value_heads" \

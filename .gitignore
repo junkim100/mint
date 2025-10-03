@@ -85,7 +85,6 @@ htmlcov/
 # Environment variables (contains secrets)
 .env
 
-# Documentation (keep only README.md and report.md)
+# Documentation (keep only README.md)
 *.md
 !README.md
-!report.md
