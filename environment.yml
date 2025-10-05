@@ -1,0 +1,28 @@
+name: mint
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.11
+  - pytorch>=2.3
+  - pytorch-cuda=12.1
+  - pip
+  - pip:
+      - fire>=0.6
+      - pyyaml>=6
+      - numpy
+      - scipy
+      - pandas
+      - tqdm
+      - rich
+      - transformers>=4.42
+      - accelerate
+      - einops
+      - hydra-core==1.3.2
+      - safetensors
+      - sentencepiece
+      - datasets
+      - pytest
+      - pytest-cov
+

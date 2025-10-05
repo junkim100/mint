@@ -1,0 +1,60 @@
+run_name: "mint_tau_local"
+seed: 42
+
+# base model (for hidden-state capture and generation)
+model:
+  provider: "hf"                      # "hf" or "vllm" as passthrough for evalchemy
+  name: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  pretrained: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  tokenizer: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  dtype: "bfloat16"
+  max_new_tokens: 512
+  device_map: "auto"
+
+mte:
+  layers: [0, 4, 9, 13, 18, 22, 27, 31]  # 8 layers: include layer 0 and 31; evenly distributed
+  feature_space: "sae"                 # "sae" or "residual"
+  edit_norm_cap: 0.5
+  hidden_expansion: 8                  # SAE 8x space
+  hidden_dim: 4096                     # Llama-3.1-8B hidden size
+  loss: "mse"
+  lr: 1.0e-4
+  batch_size: 32
+  steps: 2000
+  save_dir: "checkpoints/mte"
+  l2_penalty: 0.01                     # regularization on edit magnitudes
+  edit_strength: 1.0                   # scalar multiplier for edit magnitude
+  # SAE checkpoint paths (layer_id -> path)
+  sae_checkpoints:
+    "0":  "checkpoints/sae/layer_0.safetensors"
+    "4":  "checkpoints/sae/layer_4.safetensors"
+    "9":  "checkpoints/sae/layer_9.safetensors"
+    "13": "checkpoints/sae/layer_13.safetensors"
+    "18": "checkpoints/sae/layer_18.safetensors"
+    "22": "checkpoints/sae/layer_22.safetensors"
+    "27": "checkpoints/sae/layer_27.safetensors"
+    "31": "checkpoints/sae/layer_31.safetensors"
+
+data:
+  # ToolBench data adapter settings (counterfactual pair creation)
+  pairs_dir: "data/pairs"
+  max_pairs: 10000  # Total number of pairs to generate from ToolBench
+  tools: null  # null = use all tools from ToolBench dataset
+
+eval:
+  task: ["tau_bench"]            # Evalchemy task key for tau-bench
+  output_dir: "results/eval"
+  model_backend: "vllm"
+  batch_size: "auto"
+  model_args:
+    tensor_parallel_size: 8
+    max_model_len: 1024
+    dtype: bfloat16
+    gpu_memory_utilization: 0.9
+    trust_remote_code: true
+
+gpu:
+  CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
+
+logging:
+  level: "INFO"
